@@ -56,7 +56,8 @@
         x: 0, y: 0,
         radius: 14,
         hp: 90,
-        maxHp: 90
+        maxHp: 90,
+        speed: 4.5 // уменьшена на 10% (было 5)
     };
 
     // Джойстик
@@ -82,14 +83,18 @@
     const enemySpawnRate = 0.02;
     const bouncerSpawnRate = 0.005;
     const healerSpawnRate = 0.0024;
-    const baseSpeed = 2;
+    const baseSpeedMin = 2.5;  // увеличена минимальная скорость
+    const baseSpeedMax = 4.0;   // увеличена максимальная скорость
     const enemyDamage = 7;
     const healerMinHeal = 15;
     const healerMaxHeal = 19;
 
+    // Коэффициент уменьшения хитбокса пуль (на 15%)
+    const HITBOX_SCALE = 0.85;
+
     // Параметры для нового врага (оранжевый, вытянутый)
     const BOUNCER_FALL_DISTANCE = 0.15;        // 15% пути до остановки
-    const BOUNCER_RISE_DISTANCE = 0.07;        // 7% пути вверх
+    const BOUNCER_RISE_DISTANCE = 0.04;        // 4% пути вверх (было 0.07)
     const BOUNCER_WAIT_TIME = 90;               // 1.5 сек при 60fps
     const BOUNCER_RISE_SPEED_MULT = 1.5;        // скорость подъёма выше
     const BOUNCER_ACCELERATION = 0.05;          // ускорение при падении после отскока
@@ -221,65 +226,71 @@
     window.addEventListener('mousemove', handleJoystickMove);
     window.addEventListener('mouseup', handleJoystickEnd);
 
-    // ---------- Функции спавна ----------
-    function getRandomX() {
-        const margin = 40;
-        return Math.random() * (gameWidth + 2 * margin) - margin;
+    // ---------- Функции спавна (в пределах бокса) ----------
+    function getRandomX(radius) {
+        // Возвращает X в пределах [radius, gameWidth - radius]
+        return Math.random() * (gameWidth - 2 * radius) + radius;
     }
 
     function spawnEnemy() {
+        const speed = Math.random() * (baseSpeedMax - baseSpeedMin) + baseSpeedMin;
         enemies.push({
-            x: getRandomX(),
+            x: getRandomX(14),
             y: -20,
             radius: 14,
-            speed: baseSpeed,
+            speed: speed,
             type: 'enemy'
         });
     }
 
     function spawnHealer() {
+        const speed = Math.random() * (baseSpeedMax - baseSpeedMin) + baseSpeedMin;
         healers.push({
-            x: getRandomX(),
+            x: getRandomX(12),
             y: -20,
             radius: 12,
-            speed: baseSpeed,
+            speed: speed,
             type: 'healer'
         });
     }
 
     function spawnBouncer() {
+        const speed = Math.random() * (baseSpeedMax - baseSpeedMin) + baseSpeedMin;
         bouncers.push({
-            x: getRandomX(),
+            x: getRandomX(12),
             y: -20,
-            radius: 12,           // чуть меньше для вытянутой формы
-            speed: baseSpeed,
+            radius: 12,
+            speed: speed,
             type: 'bouncer',
             state: 'falling',
             waitTimer: 0,
             riseDistance: 0,
             startY: 0,
             trail: [],
-            currentSpeed: baseSpeed, // текущая скорость (для ускорения)
-            acceleration: 0        // накопленное ускорение
+            currentSpeed: speed,
+            acceleration: 0
         });
     }
 
     // ---------- Обновление ----------
     function updatePlayerPosition() {
-        const speed = 5;
-        player.x += joystick.dx * speed;
-        player.y += joystick.dy * speed;
+        player.x += joystick.dx * player.speed;
+        player.y += joystick.dy * player.speed;
         player.x = Math.max(player.radius, Math.min(gameWidth - player.radius, player.x));
         player.y = Math.max(player.radius, Math.min(gameHeight - player.radius, player.y));
     }
 
     function checkCollisions() {
+        // Для каждой пули используем уменьшенный хитбокс: радиус * HITBOX_SCALE
+        const playerRadius = player.radius; // хитбокс игрока не меняем
+
         for (let i = enemies.length - 1; i >= 0; i--) {
             const e = enemies[i];
+            const hitRadius = e.radius * HITBOX_SCALE;
             const dx = player.x - e.x;
             const dy = player.y - e.y;
             const dist = Math.sqrt(dx*dx + dy*dy);
-            if (dist < player.radius + e.radius) {
+            if (dist < playerRadius + hitRadius) {
                 player.hp = Math.max(0, player.hp - enemyDamage);
                 healthSpan.innerText = player.hp;
                 floatingTexts.push({
@@ -296,10 +307,11 @@
 
         for (let i = healers.length - 1; i >= 0; i--) {
             const h = healers[i];
+            const hitRadius = h.radius * HITBOX_SCALE;
             const dx = player.x - h.x;
             const dy = player.y - h.y;
             const dist = Math.sqrt(dx*dx + dy*dy);
-            if (dist < player.radius + h.radius) {
+            if (dist < playerRadius + hitRadius) {
                 const healAmount = Math.floor(Math.random() * (healerMaxHeal - healerMinHeal + 1)) + healerMinHeal;
                 player.hp = Math.min(player.maxHp, player.hp + healAmount);
                 healthSpan.innerText = player.hp;
@@ -316,13 +328,11 @@
 
         for (let i = bouncers.length - 1; i >= 0; i--) {
             const b = bouncers[i];
-            // для проверки столкновения используем bounding circle приблизительно
+            const hitRadius = b.radius * HITBOX_SCALE * 1.2; // для эллипса чуть больше
             const dx = player.x - b.x;
             const dy = player.y - b.y;
             const dist = Math.sqrt(dx*dx + dy*dy);
-            // из-за эллиптической формы используем радиус как среднее
-            const collisionRadius = b.radius * 1.2;
-            if (dist < player.radius + collisionRadius) {
+            if (dist < playerRadius + hitRadius) {
                 player.hp = Math.max(0, player.hp - enemyDamage);
                 healthSpan.innerText = player.hp;
                 floatingTexts.push({
@@ -350,13 +360,13 @@
         healers = healers.filter(h => h.y - h.radius < gameHeight + 30);
 
         for (let b of bouncers) {
-            // Сохраняем след
+            // Сохраняем след (ослабленный эффект)
             b.trail.push({ x: b.x, y: b.y });
-            if (b.trail.length > 5) b.trail.shift();
+            if (b.trail.length > 3) b.trail.shift(); // меньше точек следа (было 5)
 
             switch (b.state) {
                 case 'falling':
-                    b.y += b.speed;
+                    b.y += b.currentSpeed;
                     if (b.y - b.startY > gameHeight * BOUNCER_FALL_DISTANCE) {
                         b.state = 'waiting';
                         b.waitTimer = BOUNCER_WAIT_TIME;
@@ -370,16 +380,14 @@
                     }
                     break;
                 case 'rising':
-                    b.y -= b.speed * BOUNCER_RISE_SPEED_MULT;
+                    b.y -= b.currentSpeed * BOUNCER_RISE_SPEED_MULT;
                     if (b.startY - b.y > b.riseDistance) {
                         b.state = 'falling2';
-                        // Сброс скорости для падения с ускорением
-                        b.currentSpeed = b.speed;
+                        b.currentSpeed = b.speed; // сброс скорости для ускоренного падения
                         b.acceleration = BOUNCER_ACCELERATION;
                     }
                     break;
                 case 'falling2':
-                    // Ускоренное падение
                     b.currentSpeed += b.acceleration;
                     b.y += b.currentSpeed;
                     break;
@@ -399,23 +407,22 @@
         }
     }
 
-    // ---------- Отрисовка с обводкой и свечением ----------
+    // ---------- Отрисовка с более тонкими обводками ----------
     function drawGame() {
         if (!ctx || !gameWidth || !gameHeight) return;
 
         ctx.clearRect(0, 0, gameWidth, gameHeight);
 
-        // Функция отрисовки объекта с обводкой и свечением
-        function drawObject(x, y, radius, color, strokeColor = null, isBouncer = false) {
-            // Свечение
+        // Функция отрисовки объекта с тонкой полупрозрачной обводкой
+        function drawObject(x, y, radius, color, isBouncer = false) {
+            // Основная заливка со слабым свечением
             ctx.shadowColor = color;
-            ctx.shadowBlur = 15;
+            ctx.shadowBlur = 8; // уменьшено
 
             if (isBouncer) {
-                // Вытянутый эллипс для bouncer
                 ctx.save();
                 ctx.translate(x, y);
-                ctx.scale(1, 1.5); // вытягиваем по вертикали
+                ctx.scale(1, 1.5);
                 ctx.beginPath();
                 ctx.arc(0, 0, radius, 0, 2 * Math.PI);
                 ctx.restore();
@@ -426,10 +433,11 @@
             ctx.fillStyle = color;
             ctx.fill();
 
-            // Обводка (аккуратная, сочетающаяся)
-            ctx.shadowBlur = 10;
-            ctx.strokeStyle = strokeColor || color;
-            ctx.lineWidth = 2;
+            // Тонкая полупрозрачная обводка
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(255,255,255,0.3)'; // менее заметная
+            ctx.lineWidth = 1.2; // тоньше
+
             if (isBouncer) {
                 ctx.save();
                 ctx.translate(x, y);
@@ -443,42 +451,41 @@
             }
             ctx.stroke();
 
-            ctx.shadowBlur = 0;
             ctx.shadowColor = 'transparent';
         }
 
         // Игрок
-        drawObject(player.x, player.y, player.radius, '#4a3aff', '#a09bff');
+        drawObject(player.x, player.y, player.radius, '#4a3aff');
 
         // Обычные враги
         for (let e of enemies) {
-            drawObject(e.x, e.y, e.radius, '#ff6b6b', '#ffa0a0');
+            drawObject(e.x, e.y, e.radius, '#ff6b6b');
         }
 
         // Лекари
         for (let h of healers) {
-            drawObject(h.x, h.y, h.radius, '#2ecc71', '#a0e0a0');
+            drawObject(h.x, h.y, h.radius, '#2ecc71');
         }
 
-        // Новые враги (оранжевые, вытянутые)
+        // Новые враги (оранжевые, вытянутые) со слабым следом
         for (let b of bouncers) {
-            // След
+            // След (очень слабый)
             for (let i = 0; i < b.trail.length; i++) {
                 const t = b.trail[i];
-                const alpha = 0.3 * (i / b.trail.length);
+                const alpha = 0.15 * (i / b.trail.length); // менее заметный
                 ctx.globalAlpha = alpha;
-                drawObject(t.x, t.y, b.radius, '#ff8c42', '#ffb07c', true);
+                drawObject(t.x, t.y, b.radius, '#ff8c42', true);
             }
             ctx.globalAlpha = 1.0;
-            drawObject(b.x, b.y, b.radius, '#ff8c42', '#ffb07c', true);
+            drawObject(b.x, b.y, b.radius, '#ff8c42', true);
         }
 
-        // Тексты
+        // Тексты урона/лечения
         for (let t of floatingTexts) {
             ctx.font = 'bold 22px -apple-system, BlinkMacSystemFont, sans-serif';
             ctx.fillStyle = t.color;
             ctx.shadowColor = t.color;
-            ctx.shadowBlur = 10;
+            ctx.shadowBlur = 5;
             ctx.globalAlpha = t.life / 120;
             ctx.fillText(t.text, t.x - 20, t.y);
         }
@@ -491,14 +498,14 @@
             ctx.font = 'bold 40px -apple-system, sans-serif';
             ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--text-primary').trim() || '#1a1a2e';
             ctx.shadowColor = ctx.fillStyle;
-            ctx.shadowBlur = 15;
+            ctx.shadowBlur = 10;
             ctx.textAlign = 'center';
             ctx.fillText('GAME OVER', gameWidth/2, gameHeight/2);
         } else if (paused) {
             ctx.font = 'bold 40px -apple-system, sans-serif';
             ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--text-primary').trim() || '#1a1a2e';
             ctx.shadowColor = ctx.fillStyle;
-            ctx.shadowBlur = 15;
+            ctx.shadowBlur = 10;
             ctx.textAlign = 'center';
             ctx.fillText('ПАУЗА', gameWidth/2, gameHeight/2);
         }
