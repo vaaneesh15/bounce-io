@@ -60,7 +60,7 @@
         hp: 90,
         maxHp: 90,
         baseSpeed: 3.0,
-        speed: 3.0 // текущая скорость (может меняться в гендер-вики)
+        speed: 3.0
     };
 
     // Джойстик
@@ -92,19 +92,16 @@
     const healerMinHeal = 15;
     const healerMaxHeal = 19;
 
-    // Коэффициент уменьшения хитбокса пуль
     const HITBOX_SCALE = 0.85;
 
-    // Параметры для bouncer
     const BOUNCER_FALL_DISTANCE = 0.15;
-    const BOUNCER_RISE_DISTANCE = 0.03; // 3%
+    const BOUNCER_RISE_DISTANCE = 0.03;
     const BOUNCER_WAIT_TIME = 90;
     const BOUNCER_RISE_SPEED_MULT = 1.5;
     const BOUNCER_ACCELERATION = 0.05;
 
-    // Скорость игры (множители)
     const speedOptions = [0.5, 1.0, 2.0];
-    let speedIndex = 1; // 1x по умолчанию
+    let speedIndex = 1;
     let gameSpeed = speedOptions[speedIndex];
 
     // Режим Гендер Вики
@@ -113,12 +110,11 @@
     let tapMessageShown = false;
     let tapsAfterActivation = 0;
 
-    // Флаги и таймеры
     let paused = false;
     let gameOver = false;
-    let respawnTimer = 0; // секунд до рестарта (отображается)
+    let respawnTimer = 0;
 
-    // ---------- Инициализация и ресайз ----------
+    // ---------- Инициализация ----------
     function resizeGame() {
         const gameArea = document.querySelector('.game-area');
         if (!gameArea) return;
@@ -242,7 +238,7 @@
     window.addEventListener('mousemove', handleJoystickMove);
     window.addEventListener('mouseup', handleJoystickEnd);
 
-    // ---------- Функции спавна (в пределах бокса) ----------
+    // ---------- Спавн ----------
     function getRandomX(radius) {
         return Math.random() * (gameWidth - 2 * radius) + radius;
     }
@@ -287,7 +283,7 @@
         });
     }
 
-    // ---------- Обновление позиции игрока ----------
+    // ---------- Обновление игрока ----------
     function updatePlayerPosition() {
         player.x += joystick.dx * player.speed;
         player.y += joystick.dy * player.speed;
@@ -295,9 +291,9 @@
         player.y = Math.max(player.radius, Math.min(gameHeight - player.radius, player.y));
     }
 
-    // ---------- Проверка столкновений ----------
+    // ---------- Столкновения ----------
     function checkCollisions() {
-        if (gameOver) return; // при смерти не обрабатываем столкновения
+        if (gameOver) return;
 
         const playerRadius = player.radius;
 
@@ -323,7 +319,7 @@
                 enemies.splice(i, 1);
                 if (player.hp <= 0) {
                     gameOver = true;
-                    respawnTimer = 5; // 5 секунд до рестарта
+                    respawnTimer = 5;
                 }
             }
         }
@@ -337,13 +333,13 @@
             const dist = Math.sqrt(dx*dx + dy*dy);
             if (dist < playerRadius + hitRadius) {
                 if (genderWikiActive) {
-                    // В режиме гендер вики лекари наносят 1 урон вместо лечения
-                    player.hp = Math.max(0, player.hp - 1);
+                    // В режиме гендер вики хилки восстанавливают 30 HP
+                    player.hp = Math.min(player.maxHp, player.hp + 30);
                     floatingTexts.push({
                         x: player.x,
                         y: player.y - 20,
-                        text: `-1`,
-                        color: '#ff6b6b',
+                        text: `+30`,
+                        color: '#2ecc71',
                         life: 120
                     });
                 } else {
@@ -456,7 +452,6 @@
         bouncers = bouncers.filter(b => b.y - b.radius < gameHeight + 30);
     }
 
-    // ---------- Обновление текстов ----------
     function updateFloatingTexts() {
         for (let i = floatingTexts.length - 1; i >= 0; i--) {
             floatingTexts[i].life--;
@@ -468,12 +463,47 @@
         }
     }
 
-    // ---------- Цвет HP в зависимости от процента ----------
+    // ---------- Цвет HP ----------
     function updateHealthColor() {
         const percent = player.hp / player.maxHp;
         const red = Math.min(255, 255 + Math.floor(255 * (1 - percent)));
         const green = Math.min(255, Math.floor(255 * percent));
         healthSpan.style.color = `rgb(${red}, ${green}, 100)`;
+    }
+
+    // ---------- Функция для рисования многострочного текста по центру ----------
+    function drawWrappedText(text, x, y, maxWidth, lineHeight, color, fontSize = 36) {
+        ctx.font = `bold ${fontSize}px -apple-system, BlinkMacSystemFont, sans-serif`;
+        ctx.fillStyle = color;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 10;
+        ctx.textAlign = 'center';
+
+        const words = text.split(' ');
+        let lines = [];
+        let currentLine = words[0];
+
+        for (let i = 1; i < words.length; i++) {
+            const testLine = currentLine + ' ' + words[i];
+            const metrics = ctx.measureText(testLine);
+            if (metrics.width > maxWidth) {
+                lines.push(currentLine);
+                currentLine = words[i];
+            } else {
+                currentLine = testLine;
+            }
+        }
+        lines.push(currentLine);
+
+        const totalHeight = lines.length * lineHeight;
+        let startY = y - totalHeight / 2 + lineHeight / 2;
+
+        for (let i = 0; i < lines.length; i++) {
+            ctx.fillText(lines[i], x, startY + i * lineHeight);
+        }
+
+        ctx.shadowBlur = 0;
+        ctx.textAlign = 'left';
     }
 
     // ---------- Отрисовка ----------
@@ -521,7 +551,7 @@
         }
 
         // Игрок
-        let playerColor = genderWikiActive ? '#ffd700' : '#4a3aff';
+        let playerColor = genderWikiActive ? '#ff8c42' : '#4a3aff'; // оранжевый
         drawObject(player.x, player.y, player.radius, playerColor);
 
         // Обычные враги
@@ -546,7 +576,7 @@
             drawObject(b.x, b.y, b.radius, '#ff8c42', true);
         }
 
-        // Тексты (включая пасхальные и паузу)
+        // Тексты (floating)
         for (let t of floatingTexts) {
             ctx.font = 'bold 22px -apple-system, BlinkMacSystemFont, sans-serif';
             ctx.fillStyle = t.color;
@@ -559,32 +589,25 @@
         ctx.shadowColor = 'transparent';
         ctx.globalAlpha = 1.0;
 
-        // Состояния игры (центрированные надписи)
+        // Состояния игры (центрированные надписи с переносом)
         ctx.textAlign = 'center';
         if (gameOver) {
-            // Отображаем "Вы умер" и таймер респавна
-            ctx.font = 'bold 36px -apple-system, sans-serif';
+            drawWrappedText('Вы умер', gameWidth/2, gameHeight/2 - 40, gameWidth - 40, 50, getComputedStyle(document.body).getPropertyValue('--text-primary').trim() || '#1a1a2e', 48);
+            ctx.font = 'bold 72px -apple-system, sans-serif';
             ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--text-primary').trim() || '#1a1a2e';
             ctx.shadowColor = ctx.fillStyle;
             ctx.shadowBlur = 10;
-            ctx.fillText('Вы умер', gameWidth/2, gameHeight/2 - 30);
-            ctx.font = 'bold 48px -apple-system, sans-serif';
-            ctx.fillText(Math.ceil(respawnTimer), gameWidth/2, gameHeight/2 + 30);
+            ctx.fillText(Math.ceil(respawnTimer), gameWidth/2, gameHeight/2 + 50);
+            ctx.shadowBlur = 0;
         } else if (paused) {
-            ctx.font = 'bold 40px -apple-system, sans-serif';
-            ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--text-primary').trim() || '#1a1a2e';
-            ctx.shadowColor = ctx.fillStyle;
-            ctx.shadowBlur = 10;
-            ctx.fillText('ПАУЗА', gameWidth/2, gameHeight/2);
+            drawWrappedText('ПАУЗА', gameWidth/2, gameHeight/2, gameWidth - 40, 50, getComputedStyle(document.body).getPropertyValue('--text-primary').trim() || '#1a1a2e', 48);
         }
-        ctx.shadowBlur = 0;
         ctx.textAlign = 'left';
     }
 
     // ---------- Игровой цикл ----------
     function gameLoop() {
         if (!paused && !gameOver && gameWidth && gameHeight) {
-            // Спавн с учётом gameSpeed
             if (Math.random() < enemySpawnRate * gameSpeed) spawnEnemy();
             if (Math.random() < bouncerSpawnRate * gameSpeed) spawnBouncer();
             if (Math.random() < healerSpawnRate * gameSpeed) spawnHealer();
@@ -594,10 +617,8 @@
             checkCollisions();
             updateFloatingTexts();
         } else if (gameOver) {
-            // Обратный отсчёт респавна
-            respawnTimer -= 1/60; // приблизительно 60 кадров в секунду
+            respawnTimer -= 1/60;
             if (respawnTimer <= 0) {
-                // Рестарт
                 player.hp = player.maxHp;
                 healthSpan.innerText = player.hp;
                 updateHealthColor();
@@ -606,14 +627,13 @@
                 bouncers = [];
                 floatingTexts = [];
                 gameOver = false;
-                // Сброс режима гендер вики, если активен
                 if (genderWikiActive) {
                     genderWikiActive = false;
                     player.maxHp = 90;
                     if (player.hp > 90) player.hp = 90;
                     healthSpan.innerText = player.hp;
                     updateHealthColor();
-                    player.speed = player.baseSpeed; // восстанавливаем скорость
+                    player.speed = player.baseSpeed;
                 }
             }
         }
@@ -627,7 +647,6 @@
     // ---------- Пауза ----------
     pauseBtn.addEventListener('click', () => {
         if (gameOver) {
-            // Принудительный рестарт (кнопка паузы работает как рестарт после смерти)
             player.hp = player.maxHp;
             healthSpan.innerText = player.hp;
             updateHealthColor();
@@ -647,7 +666,6 @@
         } else {
             paused = !paused;
             if (paused) {
-                // Убираем временные сообщения при паузе
                 floatingTexts = [];
             }
         }
@@ -661,12 +679,11 @@
         speedBtn.textContent = `x${gameSpeed}`;
     });
 
-    // ---------- Тапы по иконке здоровья (пасхалки) ----------
+    // ---------- Пасхалки ----------
     healthPanel.addEventListener('click', () => {
         if (paused || gameOver) return;
         tapCount++;
 
-        // 10 тапов: показать "Тап тап тап" (один раз)
         if (tapCount === 10 && !tapMessageShown) {
             tapMessageShown = true;
             floatingTexts.push({
@@ -674,16 +691,15 @@
                 y: gameHeight / 2,
                 text: 'Тап тап тап',
                 color: '#ffffff',
-                life: 240 // 4 сек
+                life: 240
             });
         }
 
-        // 19 тапов: активировать режим гендер вики (если не активен)
         if (tapCount === 19 && !genderWikiActive) {
             genderWikiActive = true;
             player.maxHp = 160;
             player.hp = 160;
-            player.speed = player.baseSpeed * 1.85; // увеличение скорости на 85%
+            player.speed = player.baseSpeed * 1.85;
             healthSpan.innerText = player.hp;
             updateHealthColor();
             floatingTexts.push({
@@ -696,7 +712,6 @@
             tapsAfterActivation = 0;
         }
 
-        // Если режим активен, считаем тапы для отключения
         if (genderWikiActive) {
             tapsAfterActivation++;
             if (tapsAfterActivation === 15) {
