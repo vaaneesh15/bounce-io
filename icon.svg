@@ -1,0 +1,15 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="128" fill="url(#grad)" />
+  <rect x="32" y="32" width="448" height="448" rx="96" fill="url(#glass)" />
+  <circle cx="256" cy="256" r="80" fill="white" fill-opacity="0.95" />
+  <circle cx="196" cy="196" r="20" fill="#ff6b6b" />
+  <circle cx="316" cy="316" r="20" fill="#2ecc71" />
+  <defs>
+    <linearGradient id="grad" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4a3aff"/><stop offset="1" stop-color="#7a6aff"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1" gradientUnits="objectBoundingBox">
+      <stop stop-color="white" stop-opacity="0.25"/><stop offset="0.5" stop-opacity="0.1"/><stop offset="1" stop-opacity="0.3"/>
+    </linearGradient>
+  </defs>
+</svg>
