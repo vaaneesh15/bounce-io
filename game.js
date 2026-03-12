@@ -75,15 +75,16 @@
     };
 
     // Массивы объектов
-    let enemies = [];
-    let healers = [];
+    let enemies = [];   // красные враги
+    let healers = [];   // зелёные хилки
     let floatingTexts = [];
 
-    // Настройки спавна обычных врагов
+    // Настройки спавна
     const enemySpawnRate = 0.02;
-    const healerSpawnRate = 0.0024;
-    const baseSpeedMin = 2.5;
-    const baseSpeedMax = 4.0;
+    const healerSpawnRate = 0.00204; // уменьшена на 15% (было 0.0024)
+    // Увеличиваем скорость пуль на 10%
+    const baseSpeedMin = 2.75; // было 2.5 * 1.1
+    const baseSpeedMax = 4.4;  // было 4.0 * 1.1
     const enemyDamage = 1;
     const healerHeal = 5;
 
@@ -100,78 +101,6 @@
     let fadeAlpha = 0;
     const FADE_DURATION = 180; // 3 сек при 60fps
     let fadeTimer = 0;
-
-    // ---------- Система волн ----------
-    let waveActive = false;
-    let waveTimer = 0;
-    const WAVE_DURATION = 480; // 8 секунд при 60fps
-    const WAVE_COOLDOWN = 900;  // 15 секунд между волнами
-    let waveCooldownTimer = 0;
-
-    // Типы врагов:
-    // 0 - обычный прямой
-    // 1 - синусоидальный
-    // 2 - делитель (разделяется на два маленьких)
-    // 3 - диагональный (летит под углом)
-    // 4 - пульсар (меняет размер)
-
-    function startWave() {
-        waveActive = true;
-        waveTimer = WAVE_DURATION;
-        // Генерируем волну из нескольких врагов
-        const centerX = gameWidth / 2;
-        for (let i = 0; i < 8; i++) {
-            // Синусоидальные враги сверху
-            enemies.push({
-                x: Math.random() * gameWidth,
-                y: -20,
-                radius: 14,
-                speed: (Math.random() * 1.5 + 2) * gameSpeed,
-                type: 1, // синусоида
-                amplitude: 50 + Math.random() * 50,
-                frequency: 0.02 + Math.random() * 0.03,
-                startX: Math.random() * gameWidth,
-                time: 0
-            });
-        }
-        for (let i = 0; i < 4; i++) {
-            // Делители
-            enemies.push({
-                x: Math.random() * gameWidth,
-                y: -20,
-                radius: 16,
-                speed: 1.8 * gameSpeed,
-                type: 2, // делитель
-                split: false
-            });
-        }
-        for (let i = 0; i < 6; i++) {
-            // Диагональные
-            const angle = (Math.random() * 0.5 + 0.25) * Math.PI; // от 45° до 135°
-            enemies.push({
-                x: Math.random() * gameWidth,
-                y: -20,
-                radius: 12,
-                speed: 2.2 * gameSpeed,
-                type: 3, // диагональ
-                vx: Math.cos(angle) * 2 * gameSpeed,
-                vy: Math.sin(angle) * 2 * gameSpeed
-            });
-        }
-        for (let i = 0; i < 5; i++) {
-            // Пульсары
-            enemies.push({
-                x: Math.random() * gameWidth,
-                y: -20,
-                radius: 12,
-                speed: 1.5 * gameSpeed,
-                type: 4, // пульсар
-                pulseTimer: 0,
-                baseRadius: 12,
-                pulseSpeed: 0.1 + Math.random() * 0.1
-            });
-        }
-    }
 
     // ---------- Инициализация ----------
     function resizeGame() {
@@ -296,7 +225,7 @@
     window.addEventListener('mousemove', handleJoystickMove);
     window.addEventListener('mouseup', handleJoystickEnd);
 
-    // ---------- Спавн обычных врагов ----------
+    // ---------- Спавн ----------
     function getRandomX(radius) {
         return Math.random() * (gameWidth - 2 * radius) + radius;
     }
@@ -308,7 +237,7 @@
             y: -20,
             radius: 14,
             speed: speed,
-            type: 0 // обычный
+            type: 'enemy'
         });
     }
 
@@ -336,6 +265,7 @@
 
         const playerRadius = player.radius;
 
+        // Красные враги
         for (let i = enemies.length - 1; i >= 0; i--) {
             const e = enemies[i];
             const hitRadius = e.radius * HITBOX_SCALE;
@@ -361,6 +291,7 @@
             }
         }
 
+        // Зелёные хилки
         for (let i = healers.length - 1; i >= 0; i--) {
             const h = healers[i];
             const hitRadius = h.radius * HITBOX_SCALE;
@@ -382,64 +313,13 @@
         }
     }
 
-    // ---------- Обновление объектов (врагов) ----------
+    // ---------- Обновление объектов ----------
     function updateObjects() {
-        for (let i = enemies.length - 1; i >= 0; i--) {
-            const e = enemies[i];
-
-            switch (e.type) {
-                case 0: // обычный прямой
-                    e.y += e.speed;
-                    break;
-                case 1: // синусоидальный
-                    e.time += 0.05;
-                    e.x = e.startX + Math.sin(e.time * e.frequency) * e.amplitude;
-                    e.y += e.speed;
-                    break;
-                case 2: // делитель
-                    e.y += e.speed;
-                    // Если достиг середины экрана и ещё не разделился
-                    if (!e.split && e.y > gameHeight / 2) {
-                        e.split = true;
-                        // Создаём два маленьких
-                        enemies.push({
-                            x: e.x - 10,
-                            y: e.y,
-                            radius: 8,
-                            speed: e.speed * 1.5,
-                            type: 0
-                        });
-                        enemies.push({
-                            x: e.x + 10,
-                            y: e.y,
-                            radius: 8,
-                            speed: e.speed * 1.5,
-                            type: 0
-                        });
-                        // Удаляем текущего
-                        enemies.splice(i, 1);
-                    }
-                    break;
-                case 3: // диагональный
-                    e.x += e.vx;
-                    e.y += e.vy;
-                    break;
-                case 4: // пульсар (меняет размер)
-                    e.pulseTimer += e.pulseSpeed;
-                    e.radius = e.baseRadius + Math.sin(e.pulseTimer) * 4;
-                    e.y += e.speed;
-                    break;
-                default:
-                    e.y += e.speed;
-            }
-
-            // Удаляем, если ушли за экран
-            if (e.y - e.radius > gameHeight + 50 || e.x + e.radius < -50 || e.x - e.radius > gameWidth + 50) {
-                enemies.splice(i, 1);
-            }
+        for (let e of enemies) {
+            e.y += e.speed;
         }
+        enemies = enemies.filter(e => e.y - e.radius < gameHeight + 30);
 
-        // Хилки (обычные)
         for (let h of healers) {
             h.y += h.speed;
         }
@@ -458,47 +338,42 @@
     }
 
     // ---------- Отрисовка ----------
-    function drawObject(x, y, radius, color, isSpecial = false) {
-        ctx.shadowColor = color;
-        ctx.shadowBlur = 8;
-
-        ctx.beginPath();
-        ctx.arc(x, y, radius, 0, 2 * Math.PI);
-        ctx.fillStyle = color;
-        ctx.fill();
-
-        ctx.shadowBlur = 0;
-        ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-        ctx.lineWidth = 1.2;
-        ctx.stroke();
-
-        ctx.shadowColor = 'transparent';
-    }
-
     function drawGame() {
         if (!ctx || !gameWidth || !gameHeight) return;
 
         ctx.clearRect(0, 0, gameWidth, gameHeight);
 
+        function drawObject(x, y, radius, color) {
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 8;
+
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, 2 * Math.PI);
+            ctx.fillStyle = color;
+            ctx.fill();
+
+            ctx.shadowBlur = 0;
+            ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+
+            ctx.shadowColor = 'transparent';
+        }
+
         // Игрок
         drawObject(player.x, player.y, player.radius, '#4a3aff');
 
-        // Враги
+        // Красные враги
         for (let e of enemies) {
-            let color = '#ff6b6b'; // красный по умолчанию
-            if (e.type === 1) color = '#ffa07a'; // лососевый для синусоиды
-            if (e.type === 2) color = '#ff4500'; // оранжево-красный для делителя
-            if (e.type === 3) color = '#dc143c'; // малиновый для диагональных
-            if (e.type === 4) color = '#ff69b4'; // розовый для пульсара
-            drawObject(e.x, e.y, e.radius, color);
+            drawObject(e.x, e.y, e.radius, '#ff6b6b');
         }
 
-        // Хилки
+        // Зелёные хилки
         for (let h of healers) {
             drawObject(h.x, h.y, h.radius, '#2ecc71');
         }
 
-        // Тексты
+        // Тексты (floating)
         for (let t of floatingTexts) {
             ctx.font = 'bold 22px -apple-system, BlinkMacSystemFont, sans-serif';
             ctx.fillStyle = t.color;
@@ -528,49 +403,21 @@
             ctx.fillStyle = `rgba(0, 0, 0, ${fadeAlpha})`;
             ctx.fillRect(0, 0, gameWidth, gameHeight);
         }
-
-        // Индикатор волны (маленький текст в углу)
-        if (waveActive) {
-            ctx.font = 'bold 16px -apple-system, sans-serif';
-            ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--accent').trim() || '#4a3aff';
-            ctx.textAlign = 'right';
-            ctx.fillText('WAVE', gameWidth - 20, 40);
-            ctx.textAlign = 'left';
-        }
     }
 
     // ---------- Игровой цикл ----------
     function gameLoop() {
         if (!paused && !gameOver && gameWidth && gameHeight) {
-            // Управление волнами
-            if (!waveActive && waveCooldownTimer <= 0) {
-                startWave();
-                waveCooldownTimer = WAVE_COOLDOWN;
-            } else if (waveActive) {
-                waveTimer--;
-                if (waveTimer <= 0) {
-                    waveActive = false;
-                }
-                // Во время волны обычный спавн снижен
-                if (Math.random() < enemySpawnRate * 0.3 * gameSpeed) spawnEnemy();
-            } else {
-                // Обычный режим
-                if (Math.random() < enemySpawnRate * gameSpeed) spawnEnemy();
-            }
-
-            // Спавн хилок всегда одинаково
+            // Спавн врагов и хилок
+            if (Math.random() < enemySpawnRate * gameSpeed) spawnEnemy();
             if (Math.random() < healerSpawnRate * gameSpeed) spawnHealer();
-
-            // Таймер восстановления волны
-            if (waveCooldownTimer > 0) {
-                waveCooldownTimer--;
-            }
 
             updatePlayerPosition();
             updateObjects();
             checkCollisions();
             updateFloatingTexts();
         } else if (gameOver) {
+            // Затемнение и рестарт
             if (fadeTimer > 0) {
                 fadeTimer--;
                 fadeAlpha = 1 - fadeTimer / FADE_DURATION;
@@ -586,8 +433,6 @@
                 floatingTexts = [];
                 gameOver = false;
                 fadeAlpha = 0;
-                waveActive = false;
-                waveCooldownTimer = 0;
             }
         }
 
@@ -600,7 +445,7 @@
     // ---------- Пауза ----------
     pauseBtn.addEventListener('click', () => {
         if (gameOver) {
-            // Рестарт принудительно
+            // Принудительный рестарт
             player.hp = player.maxHp;
             player.x = gameWidth / 2;
             player.y = gameHeight - 80;
@@ -611,8 +456,6 @@
             gameOver = false;
             fadeTimer = 0;
             fadeAlpha = 0;
-            waveActive = false;
-            waveCooldownTimer = 0;
         } else {
             paused = !paused;
             if (paused) {
